@@ -150,7 +150,10 @@ class SARAN210:
 
         command_arr = re.split(pattern, command.rstrip())
         command_arr = list(filter(None, command_arr))
-        print(command_arr)
+        #print(command_arr)
+
+        if command_arr[0] != 'AT':
+            return self.send_response(Mem.ERROR_RESPONSE)
 
         switcher = {
             'CGMI': partial(self.manufacturer, command_arr, cmd_type),
@@ -177,6 +180,12 @@ class SARAN210:
             'NSOCL': partial(self.close_socket, command_arr, cmd_type),
             'NPING': partial(self.ping_server, command_arr, cmd_type)
         }
+
+        if len(command_arr) == 1:
+            if cmd_type == Types.Action:
+                return self.send_response(Mem.OK_RESPONSE)
+            else:
+                return self.send_response(Mem.ERROR_RESPONSE)
 
         func = switcher.get(command_arr[1], 'Invalid command')
 
