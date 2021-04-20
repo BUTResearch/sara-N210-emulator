@@ -210,33 +210,36 @@ class SARAN210:
             self.conn_status = 0
             self.send_conn_notification()
             self.idle_timer = 0
-            if self.psm_status == 1:
+            if self.psm is True:
                 self.psm_active_timer = time.time() + self.psm_active
                 self.psm_periodic_timer = time.time() + self.psm_periodic
 
     def check_psm(self):
         if self.psm_active_timer == 0 or self.psm_periodic_timer == 0:
             return
-        if self.psm_status == 1:
+        if self.psm is True:
             change = False
             if time.time() - self.psm_active_timer > 0:
-                self.psm = True
+                self.psm_status = 1
                 self.psm_active_timer = self.psm_periodic_timer + self.psm_active + random.randint(2, 5)
                 change = True
             if time.time() - self.psm_periodic_timer > 0:
-                self.psm = False
-                self.psm_periodic_timer = self.psm_active_timer - self.psm_active + self.psm_periodic
+                self.psm_status = 0
+                self.conn_status = 1
+                self.idle_timer = time.time() + Mem.IDLE_TIMEOUT
+                self.psm_periodic_timer = self.psm_active_timer - self.psm_active + self.psm_periodic + Mem.IDLE_TIMEOUT
                 change = True
             if self.psm_notification == 1 and change is True:
-                self.send_response('+NPSMR: {}'.format(1 if self.psm is True else 0))
+                self.send_response('+NPSMR: {}'.format(self.psm_status))
+                self.send_conn_notification()
 
     def send_conn_notification(self):
         if self.conn_notification == 1:
             self.send_response('+CSCON: {}'.format(self.conn_status))
 
     def check_messages(self):
-        # if self.psm is True or self.registered is False:
-        #     return
+        if self.psm_status == 1 or self.registered is False:
+            return
         for k, v in self.clients.get_messages().items():
             self.send_response('+NSONMI: {}, {}'.format(k, v))
             self.send_response(Mem.OK_RESPONSE)
@@ -542,7 +545,7 @@ class SARAN210:
     def power_saving(self, command, cmd_type):
         if len(command) == 2:
             self.send_response(gen_response_no_action(command, cmd_type, '+CPSMS: {},,,"{}","{}"'
-                                                      .format(1 if self.psm else 0, self.psm_periodic_str,
+                                                      .format(1 if self.psm is True else 0, self.psm_periodic_str,
                                                               self.psm_active_str), Mem.CPSM_TEST, 2))
             return
 
@@ -559,11 +562,11 @@ class SARAN210:
             if self.psm_periodic < 0 or self.psm_active < 0 or self.psm_periodic < self.psm_active:
                 self.send_response(Mem.ERROR_RESPONSE)
                 return
-            self.psm_status = int(params[0])
-            if self.psm_status == 0:
+            self.psm = bool(params[0])
+            if self.psm is False:
                 self.psm_periodic_timer = 0
                 self.psm_active_timer = 0
-                self.psm = False
+                self.psm_status = 0
             self.send_response(Mem.OK_RESPONSE)
             return
         self.send_response(Mem.ERROR_RESPONSE)
@@ -656,9 +659,10 @@ class SARAN210:
 
             if self.conn_status == 0:
                 self.conn_status = 1
+                self.send_conn_notification()
 
-            if self.psm is True:
-                self.psm = False
+            if self.psm_status == 1:
+                self.psm_status = 0
                 self.psm_periodic_timer = 0
                 self.psm_active_timer = 0
 
